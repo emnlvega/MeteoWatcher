@@ -72,18 +72,19 @@ export class WeatherService {
     ).subscribe();
   }
 
-  getWeatherByCoords(lat: number, lng: number): void {
-    this.loadingSubject.next(true);
-    
-    this.reverseGeocode(lat, lng).subscribe({
-      next: (cityName) => {
-        const currentLocation = this.weatherDataSubject.value;
-        if (currentLocation) {
-          this.weatherDataSubject.next({ ...currentLocation, name: cityName });
-        }
-      },
-      error: () => {}
-    });
+ getWeatherByCoords(lat: number, lng: number): void {
+  this.loadingSubject.next(true);
+  
+  // Usar reverseGeocode para obtener el nombre correcto
+  this.reverseGeocode(lat, lng).subscribe({
+    next: (cityName) => {
+      const currentLocation = this.weatherDataSubject.value;
+      if (currentLocation) {
+        this.weatherDataSubject.next({ ...currentLocation, name: cityName });
+      }
+    },
+    error: () => {}
+  });
 
     this.http.get(`${this.baseUrl}/weather`, {
       params: {
@@ -145,31 +146,73 @@ export class WeatherService {
   }
 
 
-private reverseGeocode(lat: number, lng: number): Observable<string> {
+// app/services/weather.service.ts - reverseGeocode mejorado
+// app/services/weather.service.ts - reverseGeocode con tipos
+public reverseGeocode(lat: number, lng: number): Observable<string> {
   return this.http.get(`https://api.openweathermap.org/geo/1.0/reverse`, {
     params: {
       lat: lat.toString(),
       lon: lng.toString(),
-      limit: 5, // Aumentar límite para obtener más resultados
+      limit: 10,
       appid: this.apiKey
     }
   }).pipe(
     map((data: any) => {
       if (data && data.length > 0) {
+        // Función para calcular distancia entre coordenadas
+        const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+          const R = 6371;
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          return R * c;
+        };
 
-
-        for (const location of data) {
-
-          if (location.name && location.country) {
-
-            if (location.local_names && location.local_names.es) {
-              return location.local_names.es; // Nombre en español
-            }
-            return location.name;
+        // Agrupar resultados por nombre para evitar duplicados
+        const nameMap = new Map<string, { name: string; distance: number; population: number }>();
+        
+        data.forEach((location: any) => {
+          const name = location.name || '';
+          const localNames = location.local_names || {};
+          const spanishName = localNames.es || name;
+          
+          // Calcular distancia desde el punto original
+          const distance = getDistance(lat, lng, location.lat, location.lon);
+          
+          if (!nameMap.has(spanishName) || distance < nameMap.get(spanishName)!.distance) {
+            nameMap.set(spanishName, {
+              name: spanishName,
+              distance: distance,
+              population: location.population || 0
+            });
           }
-        }
+        });
 
-        return data[0].name || '';
+        // Convertir a array y ordenar
+        const results = Array.from(nameMap.values());
+        
+        // Ordenar por: 1. Distancia, 2. Población (ciudades más grandes primero)
+        results.sort((a, b) => {
+          // Si un nombre es más corto (posiblemente localidad pequeña) dar prioridad a nombres más largos
+          const aIsShort = a.name.length < 6;
+          const bIsShort = b.name.length < 6;
+          
+          if (aIsShort && !bIsShort) return 1;
+          if (!aIsShort && bIsShort) return -1;
+          
+          // Si ambos son cortos o largos, ordenar por distancia
+          if (a.distance !== b.distance) {
+            return a.distance - b.distance;
+          }
+          
+          // Si misma distancia, priorizar mayor población
+          return (b.population || 0) - (a.population || 0);
+        });
+
+        return results[0]?.name || data[0].name || '';
       }
       return '';
     }),

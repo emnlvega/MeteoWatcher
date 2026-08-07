@@ -148,19 +148,20 @@ export class GlobeControlsComponent implements OnInit {
   }
 
   getCurrentLocation() {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          this.locationService.setLocation({ lat: latitude, lng: longitude }, 'Mi Ubicacion');
-          this.weatherService.getWeatherByCoords(latitude, longitude);
-        },
-        (error) => {
-          console.error('Location error:', error);
-        }
-      );
-    }
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        // Usar exactamente el mismo método que usa el crosshair
+        this.locationService.setLocation({ lat: latitude, lng: longitude });
+        this.weatherService.getWeatherByCoords(latitude, longitude);
+      },
+      (error) => {
+        console.error('Location error:', error);
+      }
+    );
   }
+}
 
   toggleAutoRotate() {
     this.isRotating = !this.isRotating;

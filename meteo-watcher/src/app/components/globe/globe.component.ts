@@ -274,7 +274,7 @@ export class GlobeComponent implements OnInit, AfterViewInit, OnDestroy {
   private selectLocation(lat: number, lng: number) {
     this.locationService.setLocation({ lat, lng });
     this.weatherService.getWeatherByCoords(lat, lng);
-  }
+    }
 
   private handleClick(event: MouseEvent) {
     if (!this.isSelecting) return;
